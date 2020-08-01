@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script id="worker1" type="javascript/worker">
+        const BYTES_PER_CHUNK = 1024 * 1024 * 2; // 2MB chunk sizes.        
+        var files = [];
+        
+        /*
+        var endPoint = "ws" + (self.location.protocol == "https:" ? "s" : "") + "://"
+            + self.location.hostname
+            + (self.location.port ? ":" + self.location.port : "")
+            + "/upload";
+        */
+        // var endPoint = "ws://localhost:8080/upload"
+        var endPoint = "ws://cuckoosnest:8080/upload"
+        
+        var socket;
+        function openSocket() {
+            socket = new WebSocket(endPoint);
+            socket.onmessage = function (event) {
+                if (event.data.constructor.name !== 'Blob') {
+                    self.postMessage(JSON.parse(event.data));
+                }
+            };
+            socket.onopen = function () {
+                process();
+            };
+        }
+        function ready() {
+            return socket !== undefined
+                && socket.readyState !== WebSocket.CLOSED
+        }
+        function process() {
+            while (files.length > 0) {
+                var blob = files.shift();
+                socket.send(JSON.stringify({
+                    "cmd": 1,
+                    "data": {
+                        "filename": blob.name,
+                        "size": blob.size,
+                        "chunkSize": BYTES_PER_CHUNK
+                    }
+                }
+                ));
+        
+                const SIZE = blob.size;
+                var start = 0;
+                var end = BYTES_PER_CHUNK;
+                while (start < SIZE) {
+                    if ('mozSlice' in blob) {
+                        var chunk = blob.mozSlice(start, end);
+                    } else if ('slice' in blob) {
+                        var chunk = blob.slice(start, end);
+                    } else {
+                        var chunk = blob.webkitSlice(start, end);
+                    }
+                    socket.send(chunk);
+                    start = end;
+                    end = start + BYTES_PER_CHUNK;
+                }
+                socket.send(JSON.stringify({
+                    "cmd": 2,
+                    "data": {
+                        "filename": blob.name,
+                        "size": blob.size,
+                        "chunkSize": BYTES_PER_CHUNK
+                    }
+                }
+                ));
+                //self.postMessage(blob.name + " Uploaded Succesfully");
+            }
+        }
+        self.onmessage = function (e) {
+            for (var j = 0; j < e.data.files.length; j++)
+                files.push(e.data.files[j]);
+            //self.postMessage("Job size: "+files.length);
+            if (ready()) {
+                process();
+            } else
+                openSocket();
+        }
+    </script>
+
+    <title>Fast Upload</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <style>
+        #drop_zone {
+            border: 10px dashed #ccc;
+            width: 100px;
+            min-height: 100px;
+            margin: 20px auto;
+        }
+
+        #drop_zone.hover {
+            border: 10px dashed #0c0;
+        }
+
+        #drop_zone img {
+            display: block;
+            margin: 10px auto;
+        }
+
+        #drop_zone p {
+            margin: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <input type="file" id="files" name="files[]" multiple />
+    <div id="drop_zone">
+        Drop files here
+    </div>
+
+    <output id="list"></output>
+    <script>
+        Element.prototype.remove = function () {
+            this.parentElement.removeChild(this);
+        }
+        NodeList.prototype.remove = HTMLCollection.prototype.remove = function () {
+            for (var i = 0, len = this.length; i < len; i++) {
+                if (this[i] && thconsoleis[i].parentElement) {
+                    this[i].parentElement.removeChild(this[i]);
+                }
+            }
+        }
+        // Create a blob to avoid having to use an external file for worker
+        var blob = new Blob([document.querySelector('#worker1').textContent], { type: "text/javascript" })
+
+        var worker = new Worker(window.URL.createObjectURL(blob));
+
+        worker.onmessage = function (e) {
+            var li = document.getElementById(escape(e.data.data));
+            if (li)
+                li.remove();
+            else
+                console.log(e.data.data);
+        }
+        worker.onerror = werror;
+        function werror(e) {
+            console.log('ERROR: Line ', e.lineno, ' in ', e.filename, ': ', e.message);
+        }
+        function handleFileSelect(evt) {            
+            //evt.stopPropagation();
+            evt.preventDefault();
+
+            // var files = evt.dataTransfer.files || evt.target.files;
+            if ("dataTransfer" in evt) {
+                var files = evt.dataTransfer.files;
+            }
+            if ("files" in evt.target) {
+                var files = evt.target.files;
+            }
+
+            // FileList object.
+            try {
+                worker.postMessage({
+                    'files': files
+                });
+            } catch (e) {
+                console.log('Can\'t spawn files to worker - ' + e)
+                return
+            }
+            // Sending File list to worker
+            // files is a FileList of File objects. List some properties.
+            var output = [];
+            for (var i = 0, f; f = files[i]; i++) {
+                output.push('<li id="', escape(f.name), '"><strong>', escape(f.name), '</strong> (', f.type || 'n/a', ') - ', f.size, ' bytes, last modified: ', f.lastModifiedDate ? f.lastModifiedDate.toLocaleDateString() : 'n/a', '</li>');
+            }
+            document.getElementById('list').innerHTML = '<ul>' + output.join('') + '</ul>';
+        }
+
+        function handleDragOver(evt) {
+            //evt.stopPropagation();
+            evt.preventDefault();
+            evt.dataTransfer.dropEffect = 'copy';
+            // Explicitly show this is a copy.
+            return false;
+        }
+
+        // Setup the dnd listeners.
+        var dropZone = document.getElementById('drop_zone');
+        dropZone.addEventListener('dragover', handleDragOver, false);
+        dropZone.addEventListener('drop', handleFileSelect, false);
+        var filesButton = document.getElementById('files');
+        filesButton.addEventListener('change', handleFileSelect, false);
+    </script>
+</body>
+
+</html>

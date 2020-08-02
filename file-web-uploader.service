@@ -1,0 +1,16 @@
+[Unit]
+Description=File web uploader service
+After=network.target
+ 
+[Service]
+Type=simple
+LimitNOFILE=1024
+
+Restart=on-failure
+RestartSec=10
+
+WorkingDirectory=/home/frank/file-web-uploader
+ExecStart=/home/frank/file-web-uploader/file-web-uploader
+
+[Install]
+WantedBy=multi-user.target

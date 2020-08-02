@@ -13,7 +13,7 @@
             + "/upload";
         */
         // var endPoint = "ws://localhost:8080/upload"
-        var endPoint = "ws://cuckoosnest:8080/upload"
+        var endPoint = "ws://cuckoosnest.hopto.org:8080/upload"
         
         var socket;
         function openSocket() {
@@ -143,7 +143,7 @@
         function werror(e) {
             console.log('ERROR: Line ', e.lineno, ' in ', e.filename, ': ', e.message);
         }
-        function handleFileSelect(evt) {            
+        function handleFileSelect(evt) {
             //evt.stopPropagation();
             evt.preventDefault();
 
